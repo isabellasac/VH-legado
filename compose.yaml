@@ -1,0 +1,12 @@
+services:
+  careops:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: 4310
+      DATABASE_URL: ${DATABASE_URL:?Defina DATABASE_URL no arquivo .env com a URL do Neon}
+      CAREOPS_CORS_ALLOWED_ORIGINS: ${CAREOPS_CORS_ALLOWED_ORIGINS:-http://localhost:4310}
+    ports:
+      - "127.0.0.1:4310:4310"
+    restart: unless-stopped

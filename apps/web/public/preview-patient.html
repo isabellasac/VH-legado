@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Preview Patient</title>
+  </head>
+  <body>
+    <script>
+      localStorage.setItem(
+        "careops-vh.session",
+        JSON.stringify({
+          token: "mock-token-patient",
+          role: "PATIENT",
+          name: "Maria Silva",
+          destination: "/paciente/home"
+        }),
+      );
+      location.replace("/paciente/home");
+    </script>
+  </body>
+</html>

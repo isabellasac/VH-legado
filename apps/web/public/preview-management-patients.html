@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Preview Management Patients</title>
+  </head>
+  <body>
+    <script>
+      localStorage.setItem(
+        "careops-vh.session",
+        JSON.stringify({
+          token: "mock-token-management",
+          role: "MANAGEMENT",
+          name: "Dr. Ricardo Andrade",
+          destination: "/gestao/dashboard"
+        }),
+      );
+      location.replace("/gestao/pacientes");
+    </script>
+  </body>
+</html>

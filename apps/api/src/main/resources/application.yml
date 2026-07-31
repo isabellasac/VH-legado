@@ -1,0 +1,15 @@
+server:
+  port: ${PORT:4310}
+
+spring:
+  application:
+    name: careops-vh-api
+
+careops:
+  data:
+    path: ${CAREOPS_DATA_PATH:data/careops-store.json}
+  database:
+    url: ${DATABASE_URL:}
+    required: ${CAREOPS_REQUIRE_DATABASE:false}
+  cors:
+    allowed-origins: ${CAREOPS_CORS_ALLOWED_ORIGINS:}

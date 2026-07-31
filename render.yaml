@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: careops-api
+    env: docker
+    rootDir: apps/api
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: CAREOPS_CORS_ALLOWED_ORIGINS
+        value: https://careops-vh-enterprise-e1rx.vercel.app
+      - key: DATABASE_URL
+        sync: false
