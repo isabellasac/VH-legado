@@ -2,6 +2,8 @@
 
 CareOps VH é o MVP funcional de uma plataforma web para monitoramento clínico, acompanhamento assistencial e gestão de campanhas de saúde. O projeto separa os fluxos da clínica, do paciente e de parceiros, com frontend em React e backend em Spring Boot.
 
+A documentação técnica completa da implementação atual está em [docs/TECHNICAL_DOCUMENTATION.md](docs/TECHNICAL_DOCUMENTATION.md).
+
 ## Objetivo
 
 Entregar uma base funcional, rastreável e evolutiva para:
