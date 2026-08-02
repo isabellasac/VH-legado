@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../../app/providers/AuthContext";
 import { AuthShell } from "../components/AuthShell";
+import { readableError } from "../services/authApi";
 
 export function ManagementLoginPage() {
   const navigate = useNavigate();
@@ -20,8 +21,8 @@ export function ManagementLoginPage() {
     try {
       const session = await loginManagement({ identifier, password });
       navigate(session.destination);
-    } catch {
-      setError("Não foi possível validar o acesso da clínica.");
+    } catch (error) {
+      setError(readableError(error, "Não foi possível validar o acesso da clínica."));
     } finally {
       setIsLoading(false);
     }

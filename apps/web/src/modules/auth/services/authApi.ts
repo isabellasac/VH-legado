@@ -44,9 +44,11 @@ export type ManagementFirstAccessPayload = {
 };
 
 export type PatientFirstAccessPayload = {
+  name: string;
   cpf: string;
   institutionCode: string;
   birthDate: string;
+  email: string;
   password: string;
   confirmPassword: string;
 };
@@ -64,6 +66,26 @@ export type PartnerFirstAccessPayload = {
   confirmPassword: string;
 };
 
+async function responseErrorMessage(response: Response, fallback: string) {
+  const body = await response.text();
+  if (!body) return fallback;
+
+  try {
+    const parsed = JSON.parse(body) as { message?: unknown };
+    if (typeof parsed.message === "string" && parsed.message.trim()) {
+      return parsed.message;
+    }
+  } catch {
+    // A resposta pode ser texto simples; neste caso, ela continua abaixo.
+  }
+
+  return body;
+}
+
+export function readableError(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 async function postLogin(path: string, payload: LoginPayload): Promise<SessionData> {
   try {
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -75,8 +97,7 @@ async function postLogin(path: string, payload: LoginPayload): Promise<SessionDa
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || "Não foi possível validar o acesso.");
+      throw new Error(await responseErrorMessage(response, "Não foi possível validar o acesso."));
     }
 
     return (await response.json()) as SessionData;
@@ -120,8 +141,7 @@ async function postAction<TPayload>(path: string, payload: TPayload): Promise<Ac
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || "Não foi possível concluir a solicitação.");
+      throw new Error(await responseErrorMessage(response, "Não foi possível concluir a solicitação."));
     }
 
     return (await response.json()) as ActionResponse;

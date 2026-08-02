@@ -13,6 +13,7 @@ import br.com.careops.api.core.CareopsDataStore.AssessmentRecord;
 import br.com.careops.api.core.CareopsDataStore.CareGoalRecord;
 import br.com.careops.api.core.CareopsDataStore.IntelligenceSnapshot;
 import br.com.careops.api.core.CareopsDataStore.PatientRecord;
+import br.com.careops.api.core.CareopsDataStore.UserAccountRecord;
 import br.com.careops.api.core.CareopsDataStore.RoiEventRecord;
 import br.com.careops.api.intelligence.ClinicalIntelligenceResponse;
 import br.com.careops.api.intelligence.ClinicalIntelligenceService;
@@ -94,11 +95,20 @@ public class PatientService {
         return getRecord(patient.id);
     }
 
-    public PatientRecordResponse submitPatientAssessment(String requestedPatientId, Map<String, String> answers) {
-        String patientId = requestedPatientId == null || requestedPatientId.isBlank()
-            ? store.findPatientByCpf("123.456.789-00").map(patient -> patient.id).orElse("maria-silva")
-            : requestedPatientId;
-        return submitAssessment(patientId, answers);
+    public PatientRecordResponse getPatientHome(UserAccountRecord user) {
+        PatientRecord patient = store.findPatientByCpf(user.identifier)
+            .filter(item -> item.institutionId.equals(user.institutionId))
+            .filter(item -> item.active)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prontuario do paciente nao encontrado"));
+        return toRecord(patient);
+    }
+
+    public PatientRecordResponse submitPatientAssessment(UserAccountRecord user, Map<String, String> answers) {
+        PatientRecord patient = store.findPatientByCpf(user.identifier)
+            .filter(item -> item.institutionId.equals(user.institutionId))
+            .filter(item -> item.active)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Prontuario do paciente nao encontrado"));
+        return submitAssessment(patient.id, answers);
     }
 
     public PatientRecordResponse addGoal(String patientId, CareGoalRequest request) {

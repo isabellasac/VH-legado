@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AuthShell } from "../components/AuthShell";
-import { activateManagementAccess } from "../services/authApi";
+import { activateManagementAccess, readableError } from "../services/authApi";
 
 export function ManagementFirstAccessPage() {
   const navigate = useNavigate();
@@ -29,8 +29,8 @@ export function ManagementFirstAccessPage() {
       });
       setSuccess(response.message);
       window.setTimeout(() => navigate("/gestao/login"), 1200);
-    } catch {
-      setError("Não foi possível concluir o primeiro acesso.");
+    } catch (error) {
+      setError(readableError(error, "Não foi possível concluir o primeiro acesso."));
     } finally {
       setIsLoading(false);
     }
@@ -46,7 +46,7 @@ export function ManagementFirstAccessPage() {
       <form className="auth-card" onSubmit={handleSubmit}>
         <div className="auth-header">
           <h2>Primeiro acesso</h2>
-          <p>Use o e-mail convidado e o código enviado pela clínica.</p>
+          <p>Use o e-mail da equipe e o código da instituição para criar sua conta.</p>
         </div>
 
         <label className="field">
@@ -55,7 +55,7 @@ export function ManagementFirstAccessPage() {
         </label>
 
         <label className="field">
-          <span>Código de ativação</span>
+          <span>Código da instituição</span>
           <input
             type="text"
             placeholder="Digite o código enviado"

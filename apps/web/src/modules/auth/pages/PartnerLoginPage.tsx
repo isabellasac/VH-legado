@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../../app/providers/AuthContext";
 import { AuthShell } from "../components/AuthShell";
+import { readableError } from "../services/authApi";
 
 export function PartnerLoginPage() {
   const navigate = useNavigate();
@@ -20,8 +21,8 @@ export function PartnerLoginPage() {
     try {
       const session = await loginPartner({ identifier, password });
       navigate(session.destination);
-    } catch {
-      setError("Não foi possível validar o acesso do parceiro.");
+    } catch (error) {
+      setError(readableError(error, "Não foi possível validar o acesso do parceiro."));
     } finally {
       setIsLoading(false);
     }

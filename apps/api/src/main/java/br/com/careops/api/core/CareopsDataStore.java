@@ -1,6 +1,7 @@
 package br.com.careops.api.core;
 
 import java.io.IOException;
+import java.net.URI;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
@@ -104,11 +105,20 @@ public class CareopsDataStore {
             .map(InstitutionRecord::copy);
     }
 
+    public synchronized InstitutionRecord requireActiveInstitutionByCode(String code) {
+        String normalizedCode = normalizeInstitutionCode(code);
+        return data.institutions.stream()
+            .filter(institution -> institution.active)
+            .filter(institution -> normalizeInstitutionCode(institution.code).equals(normalizedCode))
+            .findFirst()
+            .map(InstitutionRecord::copy)
+            .orElseThrow(() -> new IllegalArgumentException("Codigo da instituicao invalido ou inativo"));
+    }
+
     public synchronized Optional<UserAccountRecord> findUserByRoleAndIdentifier(String role, String identifier) {
-        String normalized = normalizeIdentifier(identifier);
         return data.users.stream()
             .filter(user -> user.role.equals(role))
-            .filter(user -> normalizeIdentifier(user.identifier).equals(normalized))
+            .filter(user -> identifiersMatch(role, user.identifier, identifier))
             .findFirst()
             .map(UserAccountRecord::copy);
     }
@@ -121,7 +131,9 @@ public class CareopsDataStore {
     }
 
     public synchronized boolean passwordMatches(UserAccountRecord user, String rawPassword) {
-        return user.passwordHash.equals(hashPassword(rawPassword));
+        return user.firstAccessCompleted
+            && user.passwordHash != null
+            && user.passwordHash.equals(hashPassword(rawPassword));
     }
 
     public synchronized void updatePassword(String userId, String rawPassword) {
@@ -130,6 +142,48 @@ public class CareopsDataStore {
             user.firstAccessCompleted = true;
             user.updatedAt = now();
         });
+    }
+
+    public synchronized UserAccountRecord createOrActivateUser(
+        String institutionId,
+        String role,
+        String identifier,
+        String name,
+        String displayRole,
+        List<String> permissions,
+        String rawPassword
+    ) {
+        UserAccountRecord user = data.users.stream()
+            .filter(item -> item.role.equals(role))
+            .filter(item -> identifiersMatch(role, item.identifier, identifier))
+            .findFirst()
+            .orElse(null);
+
+        if (user == null) {
+            user = new UserAccountRecord();
+            user.id = UUID.randomUUID().toString();
+            user.institutionId = institutionId;
+            user.role = role;
+            user.identifier = identifier.trim();
+            user.name = blankToDefault(name, identifier.trim());
+            user.displayRole = displayRole;
+            user.permissions = new ArrayList<>(permissions);
+            user.createdAt = now();
+            data.users.add(user);
+        } else {
+            if (!user.institutionId.equals(institutionId)) {
+                throw new IllegalArgumentException("Esta conta pertence a outra instituicao");
+            }
+            user.name = blankToDefault(name, user.name);
+            user.displayRole = blankToDefault(displayRole, user.displayRole);
+            user.permissions = new ArrayList<>(permissions);
+        }
+
+        user.passwordHash = hashPassword(rawPassword);
+        user.firstAccessCompleted = true;
+        user.updatedAt = now();
+        save();
+        return UserAccountRecord.copy(user);
     }
 
     public synchronized SessionRecord createSession(UserAccountRecord user) {
@@ -187,8 +241,27 @@ public class CareopsDataStore {
             .map(PatientRecord::copy);
     }
 
+    public synchronized Optional<PatientRecord> findPatientForFirstAccess(
+        String cpf,
+        String institutionId,
+        String birthDate
+    ) {
+        String normalizedCpf = normalizeCpf(cpf);
+        String normalizedBirthDate = birthDate == null ? "" : birthDate.trim();
+        return data.patients.stream()
+            .filter(patient -> patient.institutionId.equals(institutionId))
+            .filter(patient -> patient.active)
+            .filter(patient -> normalizeCpf(patient.cpf).equals(normalizedCpf))
+            .filter(patient -> normalizedBirthDate.equals(patient.birthDate))
+            .findFirst()
+            .map(PatientRecord::copy);
+    }
+
     public synchronized PatientRecord createPatient(PatientRecord request) {
         PatientRecord patient = PatientRecord.copy(request);
+        if (data.patients.stream().anyMatch(existing -> normalizeCpf(existing.cpf).equals(normalizeCpf(patient.cpf)))) {
+            throw new IllegalArgumentException("Ja existe um paciente cadastrado com este CPF");
+        }
         patient.id = patient.id == null || patient.id.isBlank() ? slugFromName(patient.name) : patient.id;
         patient.institutionId = blankToDefault(patient.institutionId, DEFAULT_INSTITUTION_ID);
         patient.cpfMasked = maskCpf(patient.cpf);
@@ -210,6 +283,7 @@ public class CareopsDataStore {
         }
 
         data.patients.add(patient);
+        ensurePatientAccount(patient);
         recordConsent(patient.id, patient.institutionId, "manual-patient-create", "lgpd-v1");
         save();
         return PatientRecord.copy(patient);
@@ -221,9 +295,17 @@ public class CareopsDataStore {
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Paciente nao encontrado"));
 
+        String previousCpf = patient.cpf;
         mutation.accept(patient);
+        boolean duplicateCpf = data.patients.stream()
+            .filter(existing -> !existing.id.equals(patient.id))
+            .anyMatch(existing -> normalizeCpf(existing.cpf).equals(normalizeCpf(patient.cpf)));
+        if (duplicateCpf) {
+            throw new IllegalArgumentException("Ja existe um paciente cadastrado com este CPF");
+        }
         patient.cpfMasked = maskCpf(patient.cpf);
         patient.updatedAt = now();
+        synchronizePatientAccount(patient, previousCpf);
         recalculatePatient(patient);
         save();
         return PatientRecord.copy(patient);
@@ -646,6 +728,7 @@ public class CareopsDataStore {
 
         seedRagSources();
         seedPatients();
+        data.patients.forEach(this::ensurePatientAccount);
         seedCampaign();
 
         data.patients.forEach(patient -> {
@@ -668,6 +751,41 @@ public class CareopsDataStore {
         user.createdAt = now();
         user.updatedAt = user.createdAt;
         data.users.add(user);
+    }
+
+    private void ensurePatientAccount(PatientRecord patient) {
+        boolean accountExists = data.users.stream()
+            .anyMatch(user -> user.role.equals("PATIENT") && identifiersMatch("PATIENT", user.identifier, patient.cpf));
+        if (accountExists) {
+            return;
+        }
+
+        UserAccountRecord user = new UserAccountRecord();
+        user.id = UUID.randomUUID().toString();
+        user.institutionId = patient.institutionId;
+        user.role = "PATIENT";
+        user.identifier = patient.cpf;
+        user.passwordHash = "";
+        user.name = patient.name;
+        user.displayRole = "Paciente";
+        user.permissions = new ArrayList<>(List.of("PATIENT_HOME_READ", "ASSESSMENT_WRITE", "GOAL_WRITE"));
+        user.firstAccessCompleted = false;
+        user.createdAt = now();
+        user.updatedAt = user.createdAt;
+        data.users.add(user);
+    }
+
+    private void synchronizePatientAccount(PatientRecord patient, String previousCpf) {
+        data.users.stream()
+            .filter(user -> user.role.equals("PATIENT"))
+            .filter(user -> user.institutionId.equals(patient.institutionId))
+            .filter(user -> identifiersMatch("PATIENT", user.identifier, previousCpf))
+            .findFirst()
+            .ifPresent(user -> {
+                user.identifier = patient.cpf;
+                user.name = patient.name;
+                user.updatedAt = now();
+            });
     }
 
     private void seedRagSources() {
@@ -885,7 +1003,15 @@ public class CareopsDataStore {
     }
 
     private Connection openDatabaseConnection() throws SQLException {
-        return DriverManager.getConnection(toJdbcUrl(databaseUrl));
+        JdbcConnectionConfig connectionConfig = toJdbcConnectionConfig(databaseUrl);
+        if (connectionConfig.username() != null) {
+            return DriverManager.getConnection(
+                connectionConfig.jdbcUrl(),
+                connectionConfig.username(),
+                connectionConfig.password()
+            );
+        }
+        return DriverManager.getConnection(connectionConfig.jdbcUrl());
     }
 
     private void ensureDatabaseTable(Connection connection) throws SQLException {
@@ -900,7 +1026,7 @@ public class CareopsDataStore {
         }
     }
 
-    private static String toJdbcUrl(String value) {
+    private static JdbcConnectionConfig toJdbcConnectionConfig(String value) {
         String jdbcUrl = value == null ? "" : value.trim();
         if (jdbcUrl.startsWith("postgres://")) {
             jdbcUrl = "jdbc:postgresql://" + jdbcUrl.substring("postgres://".length());
@@ -912,11 +1038,43 @@ public class CareopsDataStore {
         // para esse parametro; remover evita falha de conexao e mantem sslmode=require.
         jdbcUrl = jdbcUrl.replaceAll("([?&])channel_binding=[^&]*&?", "$1");
         jdbcUrl = jdbcUrl.replace("?&", "?").replaceAll("[?&]$", "");
-        return jdbcUrl;
+
+        if (!jdbcUrl.startsWith("jdbc:postgresql://")) {
+            return new JdbcConnectionConfig(jdbcUrl, null, null);
+        }
+
+        URI uri = URI.create(jdbcUrl.substring("jdbc:".length()));
+        String userInfo = uri.getUserInfo();
+        String authority = uri.getRawAuthority();
+        if (userInfo == null || authority == null || !authority.contains("@")) {
+            return new JdbcConnectionConfig(jdbcUrl, null, null);
+        }
+
+        int separator = userInfo.indexOf(':');
+        String username = separator >= 0 ? userInfo.substring(0, separator) : userInfo;
+        String password = separator >= 0 ? userInfo.substring(separator + 1) : "";
+        String hostAndPort = authority.substring(authority.lastIndexOf('@') + 1);
+        String path = uri.getRawPath() == null ? "" : uri.getRawPath();
+        String query = uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery();
+        return new JdbcConnectionConfig("jdbc:postgresql://" + hostAndPort + path + query, username, password);
+    }
+
+    private record JdbcConnectionConfig(String jdbcUrl, String username, String password) {
     }
 
     private static String normalizeIdentifier(String value) {
         return value == null ? "" : value.trim().toLowerCase();
+    }
+
+    private static boolean identifiersMatch(String role, String left, String right) {
+        if ("PATIENT".equals(role)) {
+            return normalizeCpf(left).equals(normalizeCpf(right));
+        }
+        return normalizeIdentifier(left).equals(normalizeIdentifier(right));
+    }
+
+    private static String normalizeInstitutionCode(String value) {
+        return value == null ? "" : value.trim().replaceAll("\\s+", "").toUpperCase();
     }
 
     private static String normalizeCpf(String value) {

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AuthShell } from "../components/AuthShell";
-import { activatePartnerAccess } from "../services/authApi";
+import { activatePartnerAccess, readableError } from "../services/authApi";
 
 export function PartnerFirstAccessPage() {
   const navigate = useNavigate();
@@ -33,8 +33,8 @@ export function PartnerFirstAccessPage() {
       });
       setSuccess(response.message);
       window.setTimeout(() => navigate("/parceiro/login"), 1200);
-    } catch {
-      setError("Não foi possível concluir o primeiro acesso.");
+    } catch (error) {
+      setError(readableError(error, "Não foi possível concluir o primeiro acesso."));
     } finally {
       setIsLoading(false);
     }

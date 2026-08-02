@@ -11,9 +11,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import br.com.careops.api.auth.AuthService;
+import br.com.careops.api.core.CareopsDataStore.UserAccountRecord;
 import br.com.careops.api.intelligence.ClinicalIntelligenceResponse;
 import br.com.careops.api.patient.dto.AssessmentSubmissionRequest;
 import br.com.careops.api.patient.dto.CareGoalRequest;
@@ -31,9 +34,11 @@ import jakarta.validation.Valid;
 public class PatientController {
 
     private final PatientService patientService;
+    private final AuthService authService;
 
-    public PatientController(PatientService patientService) {
+    public PatientController(PatientService patientService, AuthService authService) {
         this.patientService = patientService;
+        this.authService = authService;
     }
 
     @GetMapping("/management/patients")
@@ -90,13 +95,20 @@ public class PatientController {
     }
 
     @GetMapping("/patient/home")
-    public PatientRecordResponse getPatientHome() {
-        return patientService.getRecord("maria-silva");
+    public PatientRecordResponse getPatientHome(
+        @RequestHeader(value = "Authorization", required = false) String authorization
+    ) {
+        UserAccountRecord user = authService.requireAuthenticatedUser(authorization, "PATIENT");
+        return patientService.getPatientHome(user);
     }
 
     @PostMapping("/patient/assessment")
-    public PatientRecordResponse submitPatientAssessment(@Valid @RequestBody AssessmentSubmissionRequest request) {
-        return patientService.submitPatientAssessment(request.patientId(), request.answers());
+    public PatientRecordResponse submitPatientAssessment(
+        @RequestHeader(value = "Authorization", required = false) String authorization,
+        @Valid @RequestBody AssessmentSubmissionRequest request
+    ) {
+        UserAccountRecord user = authService.requireAuthenticatedUser(authorization, "PATIENT");
+        return patientService.submitPatientAssessment(user, request.answers());
     }
 
     @PostMapping("/intelligence/preview")

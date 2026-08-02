@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { AuthShell } from "../components/AuthShell";
-import { activatePatientAccess } from "../services/authApi";
+import { activatePatientAccess, readableError } from "../services/authApi";
 
 export function PatientFirstAccessPage() {
   const navigate = useNavigate();
+  const [name, setName] = useState("");
   const [cpf, setCpf] = useState("");
   const [institutionCode, setInstitutionCode] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -23,16 +25,18 @@ export function PatientFirstAccessPage() {
 
     try {
       const response = await activatePatientAccess({
+        name,
         cpf,
         institutionCode,
         birthDate,
+        email,
         password,
         confirmPassword,
       });
       setSuccess(response.message);
       window.setTimeout(() => navigate("/paciente/login"), 1200);
-    } catch {
-      setError("Não foi possível concluir o primeiro acesso.");
+    } catch (error) {
+      setError(readableError(error, "Não foi possível concluir o primeiro acesso."));
     } finally {
       setIsLoading(false);
     }
@@ -42,14 +46,19 @@ export function PatientFirstAccessPage() {
     <AuthShell
       eyebrow="Área do paciente"
       title="Ativar acesso do paciente"
-      description="Valide seus dados e crie a senha para acompanhar metas, avaliações e o score de saúde."
-      highlights={["CPF cadastrado", "Código da clínica", "Senha para acesso diário"]}
+      description="Faça seu cadastro e crie a senha para acompanhar metas, avaliações e o score de saúde."
+      highlights={["Cadastro protegido", "Código da clínica", "Senha para acesso diário"]}
     >
       <form className="auth-card" onSubmit={handleSubmit}>
         <div className="auth-header">
           <h2>Primeiro acesso</h2>
-          <p>Informe os dados enviados pela clínica para liberar sua entrada.</p>
+          <p>Informe seus dados para criar ou ativar seu acesso à área do paciente.</p>
         </div>
+
+        <label className="field">
+          <span>Nome completo</span>
+          <input type="text" value={name} onChange={(event) => setName(event.target.value)} />
+        </label>
 
         <label className="field">
           <span>CPF</span>
@@ -69,6 +78,11 @@ export function PatientFirstAccessPage() {
         <label className="field">
           <span>Data de nascimento</span>
           <input type="date" value={birthDate} onChange={(event) => setBirthDate(event.target.value)} />
+        </label>
+
+        <label className="field">
+          <span>E-mail (opcional)</span>
+          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
         </label>
 
         <label className="field">
