@@ -120,8 +120,8 @@ CORS para configurar nesse modo.
 O serviço de produção exige `DATABASE_URL`: se ela não estiver presente, o
 container encerra em vez de gravar dados clínicos em armazenamento efêmero. A API
 cria a tabela `careops_store` no Neon na primeira inicialização e preserva os
-dados entre deploys. Consulte [DEPLOY-RENDER-NEON.md](DEPLOY-RENDER-NEON.md) para
-publicação.
+dados entre deploys. Consulte [DEPLOY-RAILWAY-NEON.md](DEPLOY-RAILWAY-NEON.md) para
+publicação no Railway.
 
 ## Desenvolvimento sem Docker
 
