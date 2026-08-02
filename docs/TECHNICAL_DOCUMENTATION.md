@@ -78,8 +78,9 @@ careops-vh-enterprise/
 ├── docs/                            Product and technical documents
 ├── Dockerfile                       Production multi-stage image
 ├── compose.yaml                     Local Docker service
-├── render.yaml                      Render service metadata
-├── DEPLOY-RENDER-NEON.md            Deployment notes
+├── render.yaml                      Legacy Render metadata, not in use
+├── DEPLOY-RAILWAY-NEON.md           Current Railway deployment guide
+├── DEPLOY-RENDER-NEON.md            Legacy link to the Railway guide
 └── README.md                        Project introduction
 ```
 
@@ -290,7 +291,7 @@ This section is the maintained route contract for the current code.
 | --- | --- | --- |
 | `GET /api/health` | None | `{ service, status, timestamp }` |
 
-Use this endpoint for Docker, Render, Railway, and load-balancer health verification.
+Use this endpoint for Docker, Railway, and load-balancer health verification.
 
 ### 10.3 Authentication endpoints
 
@@ -521,18 +522,34 @@ The Compose service needs `DATABASE_URL`.
 It restarts unless stopped.
 Its health verification calls `/api/health` every 30 seconds.
 
-### 13.2 Render and Railway
+### 13.2 Current Railway deployment
 
-Deploy one Docker web service from the repository root.
-Set `DATABASE_URL` as a secret environment variable.
-Set the health path to `/api/health`.
+The active production target is Railway project `careops-vh`, service `careops-vh`, in the `production` environment.
+The active public health endpoint is `https://careops-vh-production.up.railway.app/api/health`.
+The service uses the root `Dockerfile`.
 
-The API serves the React files in this deployment model.
-Do not create a separate frontend service unless you also set `VITE_API_BASE_URL` and CORS origins.
+Railway has no GitHub repository source for this service.
+Railway PR deployments are disabled for this project.
+GitHub pushes and pull-request merges do not deploy this service.
 
-The repository includes `render.yaml`, but its `rootDir` points to `apps/api`.
-The production Dockerfile is in the repository root and builds both applications.
-Set the service root to the repository root when you use the full single-service package.
+Deployments use the Railway CLI from a local source checkout.
+The CLI uploads the local files and creates the deployment directly.
+The current deployment uses a Dockerfile build and requires `DATABASE_URL`.
+
+Use this procedure to deploy an intended local revision:
+
+1. In a clean checkout, run `railway link --project careops-vh`.
+2. Run `railway environment production`.
+3. Run `railway service careops-vh`.
+4. Verify that the Railway status identifies the production service.
+5. Run `railway up --detach -m "Describe the release"`.
+6. Verify `https://careops-vh-production.up.railway.app/api/health`.
+
+CAUTION: The direct deploy command uploads local files.
+Before the command, verify that the checkout contains the intended revision.
+
+`render.yaml` remains in the repository as inactive legacy metadata.
+It does not represent the current deployment target.
 
 ## 14. Validation and maintenance
 
@@ -614,7 +631,8 @@ The current application is an MVP and not a compliant production clinical platfo
 | File | Purpose |
 | --- | --- |
 | `README.md` | Project scope, basic commands, and route list |
-| `DEPLOY-RENDER-NEON.md` | Deployment commands and Neon setup |
+| `DEPLOY-RAILWAY-NEON.md` | Current Railway and Neon deployment guide |
+| `DEPLOY-RENDER-NEON.md` | Legacy link to the current deployment guide |
 | `docs/01-stack-e-arquitetura.md` | Original stack and architecture decision |
 | `docs/04-fonte-de-verdade-mvp-funcional.md` | MVP business requirements |
 | `apps/api/src/main/resources/application.yml` | API configuration defaults |
